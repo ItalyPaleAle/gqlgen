@@ -158,43 +158,6 @@ func TestFileUpload(t *testing.T) {
 		require.Equal(t, `{"data":{"multipleUploadWithPayload":[{"id":1},{"id":2}]}}`, resp.Body.String())
 	})
 
-	t.Run("valid file list upload with payload and file reuse", func(t *testing.T) {
-		test := func(uploadMaxMemory int64) {
-			es.ExecFunc = func(ctx context.Context) graphql.ResponseHandler {
-				op := graphql.GetOperationContext(ctx).Operation
-				require.Equal(t, len(op.VariableDefinitions), 1)
-				require.Equal(t, op.VariableDefinitions[0].Variable, "req")
-				return graphql.OneShot(&graphql.Response{Data: []byte(`{"multipleUploadWithPayload":[{"id":1},{"id":2}]}`)})
-			}
-			multipartForm.MaxMemory = uploadMaxMemory
-
-			operations := `{ "query": "mutation($req: [UploadFile!]!) { multipleUploadWithPayload(req: $req) }", "variables": { "req": [ { "id": 1, "file": null }, { "id": 2, "file": null } ] } }`
-			mapData := `{ "0": ["variables.req.0.file", "variables.req.1.file"] }`
-			files := []file{
-				{
-					mapKey:      "0",
-					name:        "a.txt",
-					content:     "test1",
-					contentType: "text/plain",
-				},
-			}
-			req := createUploadRequest(t, operations, mapData, files)
-
-			resp := httptest.NewRecorder()
-			h.ServeHTTP(resp, req)
-			require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
-			require.Equal(t, `{"data":{"multipleUploadWithPayload":[{"id":1},{"id":2}]}}`, resp.Body.String())
-		}
-
-		t.Run("payload smaller than UploadMaxMemory, stored in memory", func(t *testing.T) {
-			test(5000)
-		})
-
-		t.Run("payload bigger than UploadMaxMemory, persisted to disk", func(t *testing.T) {
-			test(2)
-		})
-	})
-
 	validOperations := `{ "query": "mutation ($file: Upload!) { singleUpload(file: $file) }", "variables": { "file": null } }`
 	validMap := `{ "0": ["variables.file"] }`
 	validFiles := []file{
